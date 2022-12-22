@@ -58,7 +58,7 @@ const updateContact = async (contactId, body) => {
   if (index === -1) {
     throw new Error("Not found");
   }
-  contacts[index] = { id: contactId, ...body };
+  contacts[index] = { ...contacts[index], ...body };
   await updateContacts(contacts);
   return contacts[index];
 };
