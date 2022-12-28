@@ -1,4 +1,3 @@
-const contacts = require("../models/contacts");
 const Joi = require("joi");
 const Contact = require("../models/contact");
 
