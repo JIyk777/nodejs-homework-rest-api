@@ -1,7 +1,11 @@
 const { Contact, schemaValidationContact } = require("../models/contact");
 
 const getAllContacts = async (req, res, next) => {
-  const result = await Contact.find();
+  const { _id: owner } = req.user;
+  const result = await Contact.find({ owner }).populate(
+    "owner",
+    "email subscription"
+  );
   res.status(200).json(result);
 };
 
@@ -20,8 +24,15 @@ const addNewContact = async (req, res, next) => {
     const value = await schemaValidationContact.schemaAdd.validateAsync(
       req.body
     );
+    const { _id: owner } = req.user;
     const { name, email, phone, favorite = false } = value;
-    const result = await Contact.create({ name, email, phone, favorite });
+    const result = await Contact.create({
+      name,
+      email,
+      phone,
+      favorite,
+      owner,
+    });
     res.status(201).json(result);
   } catch (error) {
     res.status(400).json({
