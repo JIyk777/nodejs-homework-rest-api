@@ -1,26 +1,11 @@
-const Joi = require("joi");
-const Contact = require("../models/contact");
-
-const schemaUpdate = Joi.object({
-  name: Joi.string(),
-  email: Joi.string(),
-  phone: Joi.string(),
-  favorite: Joi.boolean(),
-}).min(1);
-
-const schemaUpdateFavorite = Joi.object({
-  favorite: Joi.boolean(),
-}).min(1);
-
-const schemaAdd = Joi.object({
-  name: Joi.string().required(),
-  email: Joi.string().email().required(),
-  phone: Joi.string().required(),
-  favorite: Joi.boolean(),
-});
+const { Contact, schemaValidationContact } = require("../models/contact");
 
 const getAllContacts = async (req, res, next) => {
-  const result = await Contact.find();
+  const { _id: owner } = req.user;
+  const result = await Contact.find({ owner }).populate(
+    "owner",
+    "email subscription"
+  );
   res.status(200).json(result);
 };
 
@@ -36,12 +21,20 @@ const getContactById = async (req, res, next) => {
 
 const addNewContact = async (req, res, next) => {
   try {
-    const value = await schemaAdd.validateAsync(req.body);
+    const value = await schemaValidationContact.schemaAdd.validateAsync(
+      req.body
+    );
+    const { _id: owner } = req.user;
     const { name, email, phone, favorite = false } = value;
-    const result = await Contact.create({ name, email, phone, favorite });
+    const result = await Contact.create({
+      name,
+      email,
+      phone,
+      favorite,
+      owner,
+    });
     res.status(201).json(result);
   } catch (error) {
-    console.log(error.details);
     res.status(400).json({
       message: `missing required ${error.details[0].context.label} field`,
     });
@@ -60,7 +53,9 @@ const removeContactById = async (req, res, next) => {
 
 const updateContact = async (req, res, next) => {
   try {
-    const value = await schemaUpdate.validateAsync(req.body);
+    const value = await schemaValidationContact.schemaUpdate.validateAsync(
+      req.body
+    );
 
     const { contactId } = req.params;
     const result = await Contact.findByIdAndUpdate(contactId, value, {
@@ -77,7 +72,10 @@ const updateContact = async (req, res, next) => {
 
 const updateStatusContact = async (req, res, next) => {
   try {
-    const value = await schemaUpdateFavorite.validateAsync(req.body);
+    const value =
+      await schemaValidationContact.schemaUpdateFavorite.validateAsync(
+        req.body
+      );
 
     const { contactId } = req.params;
     const result = await Contact.findByIdAndUpdate(contactId, value, {
