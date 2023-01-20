@@ -6,13 +6,15 @@ const gravatar = require("gravatar");
 
 const fs = require("fs").promises;
 
-const HttpError = require("../helpers");
+const { HttpError, sendEmail } = require("../helpers");
 
 const path = require("path");
 
+const { v4: uuidv4 } = require("uuid");
+
 const { User, authSchemas } = require("../models/user");
 
-const { SECRET_KEY } = process.env;
+const { SECRET_KEY, BASE_URL } = process.env;
 
 const register = async (req, res) => {
   try {
@@ -25,11 +27,27 @@ const register = async (req, res) => {
 
     const hashPassword = await bcrypt.hash(password, 10);
     const avatarURL = gravatar.url(email);
+    const verificationToken = uuidv4();
     const newUser = await User.create({
       ...value,
       password: hashPassword,
       avatarURL,
+      verificationToken,
     });
+
+    const verifyEmail = {
+      to: email,
+      subject: "Verify email",
+      html: `<a
+          target="_blank"
+          href='${BASE_URL}/api/users/verify/${verificationToken}'
+        >
+          Click to verify email
+        </a>`,
+    };
+
+    await sendEmail(verifyEmail);
+
     res.status(201).json({
       user: {
         email: newUser.email,
@@ -57,6 +75,9 @@ const login = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
+      throw new Error("Email or password is wrong");
+    }
+    if (!user.verify) {
       throw new Error("Email or password is wrong");
     }
     const passwordCompare = await bcrypt.compare(password, user.password);
@@ -123,10 +144,60 @@ const updateAvatar = async (req, res) => {
     avatarURL,
   });
 };
+
+const verify = async (req, res) => {
+  const { verificationToken } = req.params;
+  const user = await User.findOne({ verificationToken });
+  if (!user) {
+    throw HttpError(404, "User not found");
+  }
+  await User.findByIdAndUpdate(user._id, {
+    verify: true,
+    verificationToken: "",
+  });
+  res.json({ message: "Verification successful" });
+};
+
+const reVerification = async (req, res) => {
+  try {
+    const value = await authSchemas.reVerificationSchema.validateAsync(
+      req.body
+    );
+
+    const { email } = value;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      throw HttpError(404, "User not found");
+    }
+    if (user.verificationToken === "") {
+      throw HttpError(404, "Verification has already been passed");
+    }
+
+    const verifyEmail = {
+      to: email,
+      subject: "Verify email",
+      html: `<a
+          target="_blank"
+          href='${BASE_URL}/api/users/verify/${user.verificationToken}'
+        >
+          Click to verify email
+        </a>`,
+    };
+
+    await sendEmail(verifyEmail);
+  } catch (error) {
+    res.status(400).json({
+      message: "missing required field email",
+    });
+  }
+};
 module.exports = {
   register,
   login,
   getCurrent,
   logout,
   updateAvatar,
+  verify,
+  reVerification,
 };
