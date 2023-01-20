@@ -166,6 +166,8 @@ const reVerification = async (req, res) => {
 
     const { email } = value;
 
+    console.log(email);
+
     const user = await User.findOne({ email });
     if (!user) {
       throw HttpError(404, "User not found");
@@ -173,6 +175,11 @@ const reVerification = async (req, res) => {
     if (user.verificationToken === "") {
       throw HttpError(404, "Verification has already been passed");
     }
+
+    await User.findByIdAndUpdate(user._id, {
+      verify: true,
+      verificationToken: "",
+    });
 
     const verifyEmail = {
       to: email,
@@ -186,9 +193,11 @@ const reVerification = async (req, res) => {
     };
 
     await sendEmail(verifyEmail);
+
+    res.status(200).json({ message: email });
   } catch (error) {
-    res.status(400).json({
-      message: "missing required field email",
+    res.status(error.status).json({
+      message: error.message,
     });
   }
 };
